@@ -1563,101 +1563,11 @@ $body$
 
 
 /*
-psql -h 192.168.228.235 -p 5432 -d db_16_tat_200 -U dev
-
 SET search_path TO partitions;
 SET synchronous_commit to off;
 
 call partitions.partition_run();
-call partitions.partition_run_jobs('100 create index', 63366);
 call partitions.partition_run_jobs();
-
-----
-
-drop table core.log;
-drop table tf_proc.tp_caseraw;
-drop table tf_proc.tp_case;
-drop table tf_proc.tp_casebill;
-
-----
---alter table tf_proc.tp_caseraw rename to tp_caseraw_old;
---alter table tf_proc.tp_case rename to tp_case_old;
---alter table tf_proc.tp_casebill rename to tp_casebill_old;
-
-alter table partitions.log set schema core;
-alter table partitions.tp_casebill set schema tf_proc;
-alter table partitions.tp_case set schema tf_proc;
-alter table partitions.tp_caseraw set schema tf_proc;
-
-----
-
-ALTER TABLE core.log ALTER COLUMN log_date SET DEFAULT CURRENT_TIMESTAMP;
-ALTER TABLE tf_proc.tp_caseraw ALTER COLUMN date_2 SET DEFAULT CURRENT_DATE;
-ALTER TABLE tf_proc.tp_case ALTER COLUMN date_2 SET DEFAULT CURRENT_DATE;
-ALTER TABLE tf_proc.tp_casebill ALTER COLUMN date_2 SET DEFAULT CURRENT_DATE;
-
-ALTER TABLE core.log DISABLE TRIGGER tr_fd_fk_prt_log_id;
-ALTER TABLE tf_proc.tp_caseraw DISABLE TRIGGER tr_fd_fk_prt_tp_caseraw_id;
-ALTER TABLE tf_proc.tp_case DISABLE TRIGGER tr_fd_fk_prt_tp_case_id;
-ALTER TABLE tf_proc.tp_casebill DISABLE TRIGGER tr_fd_fk_prt_tp_casebill_id;
-
-----
-
-analyze core.log;
-analyze tf_proc.tp_caseraw;
-analyze tf_proc.tp_case;
-analyze tf_proc.tp_casebill;
-
-----
-
-DROP FUNCTION partitions._partition_choose_constraint_name(_kind varchar, _tbl varchar, _from varchar);
-DROP FUNCTION partitions._partition_copy_data_in_current_sh(_pt record);
-DROP FUNCTION partitions._partition_create_child_tables(_pt record);
-DROP FUNCTION partitions._partition_create_constraint_triggers(_pt record);
-DROP FUNCTION partitions._partition_create_event_trigger();
-DROP FUNCTION partitions._partition_create_index(_pt record);
-DROP FUNCTION partitions._partition_create_parent_table(_pt record);
-DROP FUNCTION partitions._partition_def_constraint_fk(_from_sh text, _from_tbl text, _from_field text, _prt_sh text, _prt_tbl text, _prt_field text);
-DROP FUNCTION partitions._partition_def_constraint_fk_on_delete(_pt record);
-DROP FUNCTION partitions._partition_def_constraint_tr(_sh text, _tbl text, _fn_name text);
-DROP FUNCTION partitions._partition_def_constraint_tr_on_delete(_pt record);
-DROP FUNCTION partitions._partition_get_constraints(_sh varchar, _tbl varchar);
-DROP FUNCTION partitions._partition_get_references(_sh varchar, _tbl varchar);
-DROP FUNCTION partitions._partition_insert_params(_sh text, _tbl text, _field text, _from date, _to date, _interval interval);
-DROP FUNCTION partitions._partition_job_update(_serial_number integer []);
-DROP FUNCTION partitions._partition_recreate_constraint_table(_pt record);
-DROP FUNCTION partitions._partition_recreate_original_triggers(_pt record);
-DROP FUNCTION partitions._partition_replace_view(_pt record);
-DROP FUNCTION partitions._partition_set_job(_name varchar, _action varchar, _before_action varchar, _after_action varchar, _status integer, _pid integer);
-DROP FUNCTION partitions._partition_table_row(_tbl varchar);
-DROP FUNCTION partitions._partition_table_update(_pt record, _status numeric);
-DROP FUNCTION partitions._partition_tmp_recreate_fns();
-DROP FUNCTION partitions._partition_tmp_def_constraint (_fn_name text, _from_sh text, _from_tbl text, _from_field text, _prt_sh text, _prt_tbl text, _prt_field text);
-
-DROP PROCEDURE partitions._partition_copy_data_fd (_to_sh text,_to_tbl text,_from_sh text, _from_tbl text);
-DROP PROCEDURE partitions.partition_copy_data();
-DROP PROCEDURE partitions._partition_write_log(_action text, _object text, _context text, _query text);
-DROP PROCEDURE partitions.partition_run_jobs(_name text, _pid integer);
-DROP PROCEDURE partitions.partition_run();
-----
-
---Gather  (cost=1000.00..6 043 329.95 rows=190 552 width=2150)
---Gather  (cost=1000.00..  175 522.23 rows=177 210 width=5211)
-
-
-
-
-EXPLAIN ANALYZE select * from tf_proc.tp_case c where c.date_2 BETWEEN '01.01.2019'::date and '14.01.2019'::date
---1  Day  (cost=177.37..24326.04 rows=8287 width=1366)     (actual time=56.327..498.995 rows=8428 loops=1)
---7  Day  (cost=1706.58..84285.05 rows=80210 width=1366)   (actual time=42.354..1190.481 rows=84471 loops=1)
---14 Day  (cost=10736.34..98903.30 rows=505748 width=1366) (actual time=152.300..4804.225 rows=504220 loops=1)
-
-
-
-EXPLAIN ANALYZE select * from tp_case_old c where c.date_2 BETWEEN '01.01.2019'::date and '14.01.2019'::date
---1  Day (cost=0.57..34657.31 rows=60004 width=649)   (actual time=44.571..1385.045 rows=8428 loops=1)
---7  Day (cost=0.57..144435.05 rows=255725 width=649) (actual time=0.043..6396.650 rows=84471 loops=1)
---14 Day (cost=0.57..379195.34 rows=704952 width=649) (actual time=0.065..23003.887 rows=504220 loops=1)
 
 */
 
