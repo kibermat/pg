@@ -37,7 +37,7 @@ comment on table partition_tables
 is 'The table contains data for partitioning';
 
 comment on column partition_tables.status
-is 'processing status ';
+is 'processing status 200 - success ';
 
 
 /*
@@ -45,10 +45,10 @@ is 'processing status ';
  */
 insert into partition_tables
     values
-     ('tf_proc', 'tp_caseraw', 'date_2', '2017-06-01'::date, '2020-06-01'::date, '1 month', 200)
-    ,('tf_proc', 'tp_case', 'date_2', '2017-06-01'::date, '2020-06-01'::date, '1 month', 200)
-    ,('tf_proc', 'tp_casebill', 'date_2', '2017-06-01'::date, '2020-06-01'::date, '1 month', 200)
-    ,('core', 'log', 'log_date', '2018-01-01'::date, '2020-06-01'::date, '1 month', 200)
+     ('tf_proc', 'tp_caseraw', 'date_2', '2018-01-01'::date, '2021-01-01'::date, '1 month', null)
+    ,('tf_proc', 'tp_case', 'date_2', '2018-01-01'::date, '2021-01-01'::date, '1 month', null)
+    ,('tf_proc', 'tp_casebill', 'date_2', '2018-01-01'::date, '2021-01-01'::date, '1 month', null)
+    ,('core', 'log', 'log_date', '2018-01-01'::date, '2021-01-01'::date, '1 month', 200)
 ;
 
 
@@ -374,9 +374,8 @@ BEGIN
     update partition_tables u set status = _status
     where u.tbl = _pt.tbl;
 
-    -- EXECUTE format('alter table %I.%I rename to %I_original', _pt.sh, _pt.tbl, _pt.tbl);
-    -- TODO drop table
-    -- EXECUTE format('drop table %I.%I', _pt.sh, _pt.tbl);
+    /* TODO удалить вн.ключи  */
+    --call _partition_drop_references(_pt.sh, _pt.tbl);
 
 END;
 $body$
@@ -642,23 +641,23 @@ $$
  * Удаление связей 
  * DROP CONSTRAINTS
  */
-CREATE OR REPLACE PROCEDURE _partition_drop_referrences(_sh text, _tbl text) AS
+CREATE OR REPLACE PROCEDURE _partition_drop_references(_sh text, _tbl text) AS
 $body$
 declare
-    _sql record;
+    _sql text;
 BEGIN
    select concat('ALTER TABLE ', _sh, '.', _tbl, 
           array_to_string( array_agg( chr(10)||' DROP CONSTRAINT '|| t.constraint_name ), ', ') ) as s 
     into _sql 
-    from partitions._partition_get_references(_sh, _tbl) 
+    from partitions._partition_get_references(_sh, _tbl) as t;
 
    if not found then 
       return;
    end if; 
 
-   call partitions._partition_write_log('drop constraints', _tbl, '_partition_drop_referrences', _sql);
-   
-   perform _sql;
+   call _partition_write_log('drop references', _tbl, '_partition_drop_references', _sql);
+
+   perform _partition_set_job('1101 drop references', _sql);
 
 END;
 $body$
@@ -716,9 +715,6 @@ BEGIN
             call _partition_write_log('undo', _pt.tbl, '_partition_recreate_constraint_table', _r.undo);
 
         END LOOP;
-
-        /* TODO удалить вн.ключи  */  
-        call _partition_drop_referrences(_pt.sh, _pt.tbl);
 
 END;
 $body$
@@ -1144,7 +1140,7 @@ $body$
  * 1.1 -Удаляем ограничения внешних ключей
  * 1.2 -Ставим триггеры на insert/update/delete
  */
-CREATE OR REPLACE FUNCTION _partition_add_constraints(_pt record)
+CREATE OR REPLACE FUNCTION _partition_rebuild_constraints(_pt record)
     RETURNS pg_catalog.void AS
 $body$
 declare
@@ -1160,7 +1156,7 @@ BEGIN
                          when _pt.tbl = constraint_tbl
                              then current_schema()
                          else constraint_sh
-                         end                                                   as sh,
+                         end                                                 as sh,
                      constraint_tbl                                          as tbl,
                      constraint_column                                       as column_from,
                      part_column                                             as column_to,
@@ -1504,8 +1500,12 @@ DECLARE
     _pt     record;
     _locked bool;
     _detail text array;
+    -- для версии 12 есть полная поддержка, сценарий будет другой
+    _ver    numeric;
 BEGIN
     call _partition_write_log('start', 'pid '|| pg_backend_pid(), 'partition_run', null);
+
+    select setting::numeric into _ver from pg_settings where "name" = 'server_version';
 
     set synchronous_commit to off;
 
@@ -1530,7 +1530,7 @@ BEGIN
 
             perform _partition_copy_data(_pt);
 
-            perform _partition_add_constraints(_pt);
+            perform _partition_rebuild_constraints(_pt);
 
             perform _partition_restore_referrences(_pt);
 
@@ -1568,6 +1568,22 @@ SET synchronous_commit to off;
 
 call partitions.partition_run();
 call partitions.partition_run_jobs();
+
+analyze tf_proc.tp_caseraw;
+analyze tf_proc.tp_case;
+analyze tf_proc.tp_casebill;
+
+alter table tf_proc.tp_casebill set schema public;
+alter table tf_proc.tp_case set schema public;
+alter table tf_proc.tp_caseraw set schema public;
+
+alter table partitions.tp_casebill set schema tf_proc;
+alter table partitions.tp_case set schema tf_proc;
+alter table partitions.tp_caseraw set schema tf_proc;
+
+ALTER TABLE tf_proc.tp_caseraw ALTER COLUMN date_2 SET DEFAULT CURRENT_DATE;
+ALTER TABLE tf_proc.tp_case ALTER COLUMN date_2 SET DEFAULT CURRENT_DATE;
+ALTER TABLE tf_proc.tp_casebill ALTER COLUMN date_2 SET DEFAULT CURRENT_DATE;
 
 */
 
