@@ -250,58 +250,64 @@ $body$
 CREATE OR REPLACE PROCEDURE partition_run_jobs(_name text default null, _pid int default null) AS
 $body$
 DECLARE
-    _r record;
+    _gr record;
+    _id numeric;
     _main_action text;
+    _before_action text;
+    _after_action text;
 BEGIN
-    call _partition_write_log('start jobs', coalesce('pid '||_pid, 'common'), 'partition_run_jobs', null);
+    call _partition_write_log('start jobs',  concat('_name=', _name, '_pid=', _pid), 'partition_run_jobs', null);
 
-    for _r in with cte as (
-        select "name",
-               before_action,
-               after_action,
-               "action",
-               serial_number
-        from partition_deferred_jobs
-        where (proc_pid = _pid or _pid is null)
-          and (name = _name or _name is null)
-          and status is null
-          and ((_pid is not null and _name is not null) or
-               pg_catalog.pg_try_advisory_xact_lock(tableoid::INTEGER, serial_number))
-        order by serial_number
-    )
-              select "name",
-                     before_action,
-                     after_action,
-                     array_agg(distinct "action" order by "action") actions,
-                     array_agg(serial_number) serials
-              from cte
-              group by 1, 2, 3
+    for _gr in select "name",
+               date_write,
+               proc_pid,
+               array_agg(serial_number order by serial_number) as ids
+               from partitions.partition_deferred_jobs
+            where status is null
+                  and (_pid is null or proc_pid = _pid)
+                  and (_name is null or "name" ilike '%'||_name||'%')
+            group by 1, 2, 3
+            order by date_write
+     loop
+         foreach _id in array _gr.ids
+         loop
+            select
+                   before_action,
+                   after_action,
+                   "action"
+             into
+                  _before_action,
+                  _after_action,
+                  _main_action
+            from partition_deferred_jobs
+            where status is null
+              and serial_number = _id
+              and pg_catalog.pg_try_advisory_xact_lock(tableoid::INTEGER, _id);
 
-        loop
-            if _r.before_action is not null then
-                call _partition_write_log('run jobs', _r.before_action, 'partition_run_jobs', _r.before_action);
-                execute _r.before_action;
+            if not found then
+                continue;
             end if;
 
-            foreach _main_action in array _r.actions
-                loop
-                    if _main_action isnull then
-                        continue;
-                    end if;
-                    call _partition_write_log('run jobs', substr(_main_action, 0, 55), 'partition_run_jobs', _main_action);
-                    execute _main_action;
-                end loop;
-
-            if _r.after_action is not null then
-                call _partition_write_log('run jobs', _r.after_action, 'partition_run_jobs', _r.after_action);
-                execute _r.after_action;
+            if _before_action is not null then
+                call _partition_write_log('run jobs', _before_action, 'partition_run_jobs', _before_action);
+                execute _before_action;
             end if;
 
-            perform _partition_job_update(_r.serials);
+            if _main_action is not null then
+                call _partition_write_log('run jobs', substr(_main_action, 0, 55), 'partition_run_jobs', _main_action);
+                execute _main_action;
+            end if;
 
-        end loop;
+            if _after_action is not null then
+                call _partition_write_log('run jobs', _after_action, 'partition_run_jobs', _after_action);
+                execute _after_action;
+            end if;
 
-    call _partition_write_log('finish jobs', coalesce('pid '||_pid, 'common'), 'partition_run_jobs', null);
+            perform _partition_job_update(_id);
+         end loop;
+     end loop;
+
+     call _partition_write_log('finish jobs', concat('_name=', _name, '_pid=', _pid), 'partition_run_jobs', null);
 
 END
 $body$
@@ -1567,6 +1573,7 @@ SET search_path TO partitions;
 SET synchronous_commit to off;
 
 call partitions.partition_run();
+call partitions.partition_run_jobs('index');
 call partitions.partition_run_jobs();
 
 analyze tf_proc.tp_caseraw;
@@ -1585,5 +1592,5 @@ ALTER TABLE tf_proc.tp_caseraw ALTER COLUMN date_2 SET DEFAULT CURRENT_DATE;
 ALTER TABLE tf_proc.tp_case ALTER COLUMN date_2 SET DEFAULT CURRENT_DATE;
 ALTER TABLE tf_proc.tp_casebill ALTER COLUMN date_2 SET DEFAULT CURRENT_DATE;
 
-*/
 
+*/
