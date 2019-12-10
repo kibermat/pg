@@ -45,12 +45,8 @@ is 'processing status 200 - success ';
  */
 insert into partition_tables
     values
-     ('tf_proc', 'tp_caseraw', 'date_2', '2018-01-01'::date, '2021-01-01'::date, '1 month', null)
-    ,('tf_proc', 'tp_case', 'date_2', '2018-01-01'::date, '2021-01-01'::date, '1 month', null)
-    ,('tf_proc', 'tp_casebill', 'date_2', '2018-01-01'::date, '2021-01-01'::date, '1 month', null)
-    ,('core', 'log', 'log_date', '2018-01-01'::date, '2021-01-01'::date, '1 month', 200)
+     ('schema', 'table', 'field', '2018-01-01'::date, '2021-01-01'::date, '1 month', null)
 ;
-
 
 
 create table if not exists partition_fn_constraints
@@ -1569,28 +1565,12 @@ $body$
 
 
 /*
+-- run
 SET search_path TO partitions;
 SET synchronous_commit to off;
 
 call partitions.partition_run();
 call partitions.partition_run_jobs('index');
 call partitions.partition_run_jobs();
-
-analyze tf_proc.tp_caseraw;
-analyze tf_proc.tp_case;
-analyze tf_proc.tp_casebill;
-
-alter table tf_proc.tp_casebill set schema public;
-alter table tf_proc.tp_case set schema public;
-alter table tf_proc.tp_caseraw set schema public;
-
-alter table partitions.tp_casebill set schema tf_proc;
-alter table partitions.tp_case set schema tf_proc;
-alter table partitions.tp_caseraw set schema tf_proc;
-
-ALTER TABLE tf_proc.tp_caseraw ALTER COLUMN date_2 SET DEFAULT CURRENT_DATE;
-ALTER TABLE tf_proc.tp_case ALTER COLUMN date_2 SET DEFAULT CURRENT_DATE;
-ALTER TABLE tf_proc.tp_casebill ALTER COLUMN date_2 SET DEFAULT CURRENT_DATE;
-
 
 */
