@@ -2,7 +2,7 @@
  * PgPartition v 1.0
  * for PostgreSQL 11
  * no dependencies
- * author: Almaz Mustakimov
+ * author: Almaz Mustakimov <at.mustakimov@yandex.ru>
  */
 
 
