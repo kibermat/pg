@@ -76,6 +76,7 @@ create table if not exists partition_tr_constraints
         NOT DEFERRABLE
 );
 
+
 create table if not exists partition_redo_journal
 (
     action     text,
@@ -99,6 +100,7 @@ create table if not exists partition_undo_journal
     c_user        name      default current_user,
     serial_number integer   default nextval('partitions_serial')
 );
+
 
 create table if not exists partition_deferred_jobs
 (
@@ -168,7 +170,7 @@ $body$
 
 --для отладки
 CREATE OR REPLACE FUNCTION _partition_tmp_recreate_fns()
-    RETURNS pg_catalog.void AS
+    RETURNS void AS
 $body$
 declare
     _r       record;
@@ -263,7 +265,7 @@ BEGIN
                   and (_pid is null or proc_pid = _pid)
                   and (_name is null or "name" ilike '%'||_name||'%')
             group by 1, 2, 3
-            order by date_write
+            order by 2
      loop
          foreach _id in array _gr.ids
          loop
@@ -315,7 +317,7 @@ $body$
  * Ввод входных данных
  */
 CREATE OR REPLACE FUNCTION _partition_insert_params(_sh text, _tbl text, _field text, _from date, _to date, _interval interval)
-    RETURNS pg_catalog.void AS
+    RETURNS void AS
 $body$
 BEGIN
     insert into partition_tables values (_sh, _tbl, _field, _from, _to, _interval);
@@ -333,7 +335,7 @@ CREATE OR REPLACE FUNCTION _partition_set_job(_name varchar, _action varchar,
                                               _after_action varchar default null,
                                               _status int default null,
                                               _pid int default pg_backend_pid())
-    RETURNS pg_catalog.void AS
+    RETURNS void AS
 $body$
 BEGIN
     insert into partition_deferred_jobs
@@ -349,7 +351,7 @@ $body$
  * Обновить partition_deferred_jobs
  */
 CREATE OR REPLACE FUNCTION _partition_job_update(_serial_number int[])
-    RETURNS pg_catalog.void AS
+    RETURNS void AS
 $body$
 BEGIN
 
@@ -369,7 +371,7 @@ $body$
  * Обновить partition_table
  */
 CREATE OR REPLACE FUNCTION _partition_table_update(_pt record, _status numeric default 1)
-    RETURNS pg_catalog.void AS
+    RETURNS void AS
 $body$
 BEGIN
 
@@ -413,7 +415,7 @@ $body$
 
 /* Создаем новую парицированную таблилицу */
 CREATE OR REPLACE FUNCTION _partition_create_parent_table(_pt record)
-    RETURNS pg_catalog.void AS
+    RETURNS void AS
 $body$
 declare
     _r    record;
@@ -599,7 +601,7 @@ $$
  * Пересоздать зависимые вью на партицию
  */
 CREATE OR REPLACE FUNCTION _partition_replace_view(_pt record)
-    RETURNS pg_catalog.void
+    RETURNS void
 AS
 $$
 declare
@@ -651,7 +653,8 @@ BEGIN
    select concat('ALTER TABLE ', _sh, '.', _tbl, 
           array_to_string( array_agg( chr(10)||' DROP CONSTRAINT '|| t.constraint_name ), ', ') ) as s 
     into _sql 
-    from partitions._partition_get_references(_sh, _tbl) as t;
+    from partitions._partition_get_references(_sh, _tbl) as t
+   group by _sh, _tbl;
 
    if not found then 
       return;
@@ -671,7 +674,7 @@ $body$
  * SET CONSTRAINTS ALL DEFERRED
  */
 CREATE OR REPLACE FUNCTION _partition_restore_referrences(_pt record)
-    RETURNS pg_catalog.void AS
+    RETURNS void AS
 $body$
 declare
     _r record;
@@ -726,7 +729,7 @@ $body$
 
 /* Создаем дочерние таблицы */
 CREATE OR REPLACE FUNCTION _partition_create_child_tables(_pt record)
-    RETURNS pg_catalog.void AS
+    RETURNS void AS
 $body$
 declare
     _r   record;
@@ -798,7 +801,7 @@ $body$
  * уникальный индекс ставим при создании партиции
  */
 CREATE OR REPLACE FUNCTION _partition_create_index(_pt record)
-    RETURNS pg_catalog.void AS
+    RETURNS void AS
 $body$
 declare
     _r record;
@@ -1097,7 +1100,7 @@ $body$
 
 /* Поставить триггереы на партициронванную таблицу */
 CREATE OR REPLACE FUNCTION _partition_restore_triggers(_pt record)
-    RETURNS pg_catalog.void AS
+    RETURNS void AS
 $body$
 declare
     _r record;
@@ -1143,7 +1146,7 @@ $body$
  * 1.2 -Ставим триггеры на insert/update/delete
  */
 CREATE OR REPLACE FUNCTION _partition_rebuild_constraints(_pt record)
-    RETURNS pg_catalog.void AS
+    RETURNS void AS
 $body$
 declare
     _r       record;
@@ -1187,7 +1190,7 @@ $body$
  * Копируем данные
  */
 CREATE OR REPLACE FUNCTION _partition_copy_data(_pt record)
-    RETURNS pg_catalog.void AS
+    RETURNS void AS
 $body$
 DECLARE
     _sql text;
@@ -1229,7 +1232,7 @@ $body$
 
 
 CREATE OR REPLACE FUNCTION _partition_create_event_trigger()
-    RETURNS pg_catalog.void AS
+    RETURNS void AS
 $body$
 BEGIN
     CREATE OR REPLACE FUNCTION f_ev_prt_alter_table()
@@ -1570,7 +1573,6 @@ SET search_path TO partitions;
 SET synchronous_commit to off;
 
 call partitions.partition_run();
-call partitions.partition_run_jobs('index');
 call partitions.partition_run_jobs();
 
 */
